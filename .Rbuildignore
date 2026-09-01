@@ -1,2 +1,5 @@
 ^matSPACE\.Rproj$
 ^\.Rproj\.user$
+^CRAN-SUBMISSION$
+^cran-comments\.md$
+^\.github$
