@@ -24,3 +24,5 @@ Imports:
     Rcpp,
     stats
 Config/roxygen2/version: 8.1.0
+URL: https://github.com/kimhyew1/matSPACE
+BugReports: https://github.com/kimhyew1/matSPACE/issues
