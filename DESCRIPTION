@@ -1,0 +1,26 @@
+Package: matSPACE
+Title: Sparse Partial Correlation Estimation for Matrix-Variate Data
+Version: 0.1.0
+Authors@R: c(
+    person("Hyewon", "Kim", , "kimhw4126@gmail.com", role = c("aut", "cre")),
+    person("Seongoh", "Park", , "seongohpark6@gmail.com", role = c("aut"))
+    )
+Description: Fits sparse partial correlation networks for matrix-variate
+    data by extending the SPACE joint partial correlation estimation
+    framework to a Kronecker-product covariance structure. All partial
+    correlations are estimated simultaneously via an L1-penalized
+    ('lasso') shooting algorithm within a single optimization framework,
+    which preserves symmetry of the estimated network and avoids the
+    tuning-parameter selection difficulties of separate node-wise
+    regressions. Optional features include column reweighting, residual
+    variance re-estimation across outer iterations, and automatic
+    generation of a lasso penalty sequence for tuning.
+License: GPL (>= 3)
+Encoding: UTF-8
+Roxygen: list(markdown = TRUE)
+LinkingTo: 
+    Rcpp
+Imports:
+    Rcpp,
+    stats
+Config/roxygen2/version: 8.1.0
