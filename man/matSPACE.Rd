@@ -11,7 +11,7 @@ matSPACE(
   K = 30,
   f_type_V = "equal",
   f_type_U = "equal",
-  sf_vec = c(1.5)
+  sf_vec = c(1, 1.5)
 )
 }
 \arguments{
@@ -79,7 +79,7 @@ fitted \code{V[1, 1]} (\code{U} is multiplied by that same \code{c}), which pres
 set.seed(1)
 p <- 4; q <- 3; n <- 3
 data <- replicate(n, matrix(rnorm(p * q), p, q), simplify = FALSE)
-fit <- matSPACE(data, K = 5, sf_vec = c(1, 2))
+fit <- matSPACE(data, K = 5, sf_vec = c(1, 1.5))
 fit$sf_1$V
 fit$sf_1$U
 path <- attr(fit, "path")
