@@ -305,3 +305,177 @@ space = function(data, lam, sig = NULL, f_type = "equal",
     E          = E_list
   )
 }
+
+#' Reconstruct a precision matrix from partial correlations and residual precisions
+#'
+#' Implements the standard SPACE parameterization
+#' `Omega[i, j] = -ParCor[i, j] * sqrt(sig[i] * sig[j])` for `i != j` and
+#' `Omega[i, i] = sig[i]`, turning the `(ParCor, sig)` pair returned by
+#' [space()] into the full symmetric precision (concentration) matrix.
+#'
+#' @param ParCor q x q partial correlation matrix (diagonal = 1), as
+#'   returned in the `ParCor` component of [space()].
+#' @param sig length-q vector of residual precisions (1/variance), as
+#'   returned in the `sig` component of [space()].
+#' @return A symmetric q x q numeric precision matrix.
+#' @noRd
+precision_from_parcor <- function(ParCor, sig) {
+  Omega <- -ParCor * outer(sqrt(sig), sqrt(sig))
+  diag(Omega) <- sig
+  Omega
+}
+
+#' Fit [space()] over a lambda path and score each fit by BIC
+#'
+#' Internal helper for [matSPACE()]: fits [space()] once per value in
+#' `lambda_seq`, and for each fit computes `compute_BIC()` at every
+#' scaling factor in `sf_vec` (reusing the same fit, without refitting).
+#'
+#' @param dt list of n matrices, each p x q, in the format expected by
+#'   the `data` argument of [space()].
+#' @param lambda_seq numeric vector of lasso penalties to fit, typically
+#'   from [lambda.bound()].
+#' @param f_type column weighting scheme forwarded to [space()]; see
+#'   `compute_weight()`.
+#' @param sf_vec numeric vector of BIC scaling factors (the `sf` argument
+#'   of `compute_BIC()`) to score every fit at.
+#' @return A list with components:
+#'   \item{fits}{list of length `length(lambda_seq)`, the raw [space()]
+#'     fit at each lambda.}
+#'   \item{bic}{numeric matrix, `length(lambda_seq)` rows by
+#'     `length(sf_vec)` columns (named `sf_<value>`), the BIC of each fit
+#'     at each scaling factor.}
+#'   \item{lambda}{`lambda_seq`, unchanged (for convenience).}
+#' @noRd
+space_bic_path <- function(dt, lambda_seq, f_type, sf_vec) {
+  fits <- vector("list", length(lambda_seq))
+  bic  <- matrix(
+    NA_real_, nrow = length(lambda_seq), ncol = length(sf_vec),
+    dimnames = list(NULL, paste0("sf_", sf_vec))
+  )
+
+  for (i in seq_along(lambda_seq)) {
+    res      <- space(dt, lambda_seq[i], f_type = f_type)
+    coef     <- res$ParCor[upper.tri(res$ParCor)]
+    beta.cur <- rho_to_beta(coef, res$sig)
+
+    bic[i, ] <- vapply(
+      sf_vec,
+      function(sf) compute_BIC(dt, beta.cur, res$sig, sf = sf),
+      numeric(1)
+    )
+    fits[[i]] <- res
+  }
+
+  list(fits = fits, bic = bic, lambda = lambda_seq)
+}
+
+#' Estimate row/column precision matrices for Kronecker-structured (matrix-variate) SPACE, with identifiability resolved
+#'
+#' Fits [space()] independently on the data (for the column precision `V`,
+#' q x q) and on the transposed data (for the row precision `U`, p x p),
+#' each over a lasso penalty path, selects the BIC-minimizing lambda for
+#' `U` and for `V` separately at every scaling factor in `sf_vec`, and
+#' reconstructs the corresponding precision matrices (via
+#' `precision_from_parcor()`). Because the Kronecker product
+#' `kronecker(V, U)` is invariant under `(V / c, U * c)` for any
+#' `c > 0`, the pair is not separately identifiable from the data; the
+#' result is rescaled so that `V[1, 1] == 1`, using `c` equal to the raw
+#' fitted `V[1, 1]` (`U` is multiplied by that same `c`), which preserves
+#' `kronecker(V, U)` exactly.
+#'
+#' @param data list of n matrices, each p x q; the matrix-variate
+#'   observations, in the same format expected by the `data` argument of
+#'   [space()].
+#' @param lambda_V optional numeric vector of lasso penalties to use for
+#'   the column (`V`, q x q) fit. If `NULL` (default), generated via
+#'   [lambda.bound()] on `data` with `K` values.
+#' @param lambda_U optional numeric vector of lasso penalties to use for
+#'   the row (`U`, p x p) fit. If `NULL` (default), generated via
+#'   [lambda.bound()] on the transposed data with `K` values.
+#' @param K number of lambda values to generate with [lambda.bound()]
+#'   when `lambda_V` or `lambda_U` is `NULL`. Ignored for whichever of
+#'   the two is supplied directly.
+#' @param f_type_V column weighting scheme forwarded to [space()] for
+#'   the `V` fit; see `compute_weight()`.
+#' @param f_type_U column weighting scheme forwarded to [space()] for
+#'   the `U` fit; see `compute_weight()`.
+#' @param sf_vec numeric vector of BIC scaling factors (the `sf` argument
+#'   of `compute_BIC()`). A separate BIC-minimizing lambda — and
+#'   resulting identifiability-resolved `(U, V)` pair — is returned for
+#'   each value.
+#' @return A named list, one element per value of `sf_vec` (named
+#'   `sf_<value>`), each a list with components:
+#'   \item{V}{q x q precision matrix at the BIC-minimizing `lambda_V`,
+#'     rescaled so `V[1, 1] == 1`.}
+#'   \item{U}{p x p precision matrix at the BIC-minimizing `lambda_U`,
+#'     rescaled by the same factor to preserve `kronecker(V, U)`.}
+#'   \item{lambda_V, lambda_U}{the BIC-minimizing lambda for `V` and `U`
+#'     at this `sf`.}
+#'   \item{BIC_V, BIC_U}{the corresponding minimum BIC values.}
+#'   \item{sf}{the scaling factor this element was selected at.}
+#'
+#'   The full lambda paths behind this selection are attached as a
+#'   `"path"` attribute (`attr(fit, "path")`), a list with `V` and `U`
+#'   components, each with `fits` (the raw `space()` fit at every lambda
+#'   tried), `bic` (a `length(lambda)` x `length(sf_vec)` matrix, named
+#'   `sf_<value>`), and `lambda`. Useful for plotting BIC (or the number
+#'   of nonzero edges, from `fits[[i]]$ParCor`) against lambda without
+#'   refitting.
+#' @export
+#' @examples
+#' set.seed(1)
+#' p <- 4; q <- 3; n <- 3
+#' data <- replicate(n, matrix(rnorm(p * q), p, q), simplify = FALSE)
+#' fit <- matSPACE(data, K = 5, sf_vec = c(1, 2))
+#' fit$sf_1$V
+#' fit$sf_1$U
+#' path <- attr(fit, "path")
+#' plot(path$V$lambda, path$V$bic[, "sf_1"], type = "b")
+matSPACE <- function(data,
+                        lambda_V = NULL, lambda_U = NULL,
+                        K = 30,
+                        f_type_V = "equal", f_type_U = "equal",
+                        sf_vec = c(1.5) ) {
+
+  dt_V <- data
+  dt_U <- lapply(data, t)
+
+  if (is.null(lambda_V)) lambda_V <- lambda.bound(dt_V, K = K)
+  if (is.null(lambda_U)) lambda_U <- lambda.bound(dt_U, K = K)
+
+  path_V <- space_bic_path(dt_V, lambda_V, f_type_V, sf_vec)
+  path_U <- space_bic_path(dt_U, lambda_U, f_type_U, sf_vec)
+
+  sf_names <- paste0("sf_", sf_vec)
+  out <- vector("list", length(sf_vec))
+  names(out) <- sf_names
+
+  for (k in seq_along(sf_vec)) {
+    i_V <- which.min(path_V$bic[, k])
+    i_U <- which.min(path_U$bic[, k])
+
+    fit_V <- path_V$fits[[i_V]]
+    fit_U <- path_U$fits[[i_U]]
+
+    Omega_V <- precision_from_parcor(fit_V$ParCor, fit_V$sig)
+    Omega_U <- precision_from_parcor(fit_U$ParCor, fit_U$sig)
+
+    v11     <- Omega_V[1, 1]
+    Omega_V <- Omega_V / v11
+    Omega_U <- Omega_U * v11
+
+    out[[k]] <- list(
+      V        = Omega_V,
+      U        = Omega_U,
+      lambda_V = path_V$lambda[i_V],
+      lambda_U = path_U$lambda[i_U],
+      BIC_V    = path_V$bic[i_V, k],
+      BIC_U    = path_U$bic[i_U, k],
+      sf       = sf_vec[k]
+    )
+  }
+
+  attr(out, "path") <- list(V = path_V, U = path_U)
+  out
+}

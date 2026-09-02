@@ -7,6 +7,7 @@
 #' model-fitting function.
 #'
 #' @keywords internal
+#' @aliases NULL
 "_PACKAGE"
 
 ## usethis namespace: start

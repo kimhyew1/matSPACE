@@ -2,7 +2,6 @@
 % Please edit documentation in R/matSPACE-package.R
 \docType{package}
 \name{matSPACE-package}
-\alias{matSPACE}
 \alias{matSPACE-package}
 \title{matSPACE: Sparse Partial Correlation Estimation for Matrix-Variate Data}
 \description{
@@ -12,12 +11,21 @@ algorithm, with optional per-column reweighting and residual variance
 re-estimation across outer iterations. See \code{\link[=space]{space()}} for the main
 model-fitting function.
 }
+\seealso{
+Useful links:
+\itemize{
+  \item \url{https://github.com/kimhyew1/matSPACE}
+  \item Report bugs at \url{https://github.com/kimhyew1/matSPACE/issues}
+}
+
+}
 \author{
-\strong{Maintainer}: FIRSTNAME LASTNAME \email{kimhw4126@gmail.com}
+\strong{Maintainer}: Hyewon Kim \email{kimhw4126@gmail.com}
 
 Authors:
 \itemize{
-  \item FIRSTNAME LASTNAME \email{kimhw4126@gmail.com}
+  \item Hyewon Kim \email{kimhw4126@gmail.com}
+  \item Seongoh Park \email{seongohpark6@gmail.com}
 }
 
 }
