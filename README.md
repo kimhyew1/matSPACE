@@ -82,7 +82,7 @@ attribute, which lets us plot BIC against lambda without refitting.
 
 ``` r
 path = attr(fit, "path")
-plot(path$V$lambda, path$V$bic, type = "b",
+plot(log(path$V$lambda), path$V$bic, type = "b",
      xlab = "lambda", ylab = "BIC", main = "Column (V) lambda path")
 ```
 

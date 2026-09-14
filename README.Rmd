@@ -64,7 +64,7 @@ fit$U   # p x p row-wise precision matrix
 The full lambda path behind this selection is attached as a `"path"` attribute, which lets us plot BIC against lambda without refitting.
 ```{r, eval = TRUE}
 path = attr(fit, "path")
-plot(path$V$lambda, path$V$bic, type = "b",
+plot(log(path$V$lambda), path$V$bic, type = "b",
      xlab = "lambda", ylab = "BIC", main = "Column (V) lambda path")
 ```
 
