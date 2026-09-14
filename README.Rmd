@@ -74,7 +74,8 @@ The full lambda path behind this selection is attached as a `"path"` attribute, 
 path = attr(fit, "path")
 plot(log(path$V$lambda), path$V$bic, type = "b",
      xlab = "log(lambda)", ylab = "BIC", main = "Column (V) lambda path")
-points(path$V$lambda[which(path$V$bic)], which(path$V$bic))
+i_min = which.min(path$V$bic)
+points(log(path$V$lambda[i_min]), path$V$bic[i_min], col = "red", pch = 19)
 ```
 
 ### Fitting with a single lasso penalty

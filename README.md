@@ -92,15 +92,11 @@ attribute, which lets us plot BIC against lambda without refitting.
 path = attr(fit, "path")
 plot(log(path$V$lambda), path$V$bic, type = "b",
      xlab = "log(lambda)", ylab = "BIC", main = "Column (V) lambda path")
+i_min = which.min(path$V$bic)
+points(log(path$V$lambda[i_min]), path$V$bic[i_min], col = "red", pch = 19)
 ```
 
 ![](man/figures/README-unnamed-chunk-5-1.png)<!-- -->
-
-``` r
-points(path$V$lambda[which(path$V$bic)], which(path$V$bic))
-#> Error in `which()`:
-#> ! argument to 'which' is not logical
-```
 
 ### Fitting with a single lasso penalty
 

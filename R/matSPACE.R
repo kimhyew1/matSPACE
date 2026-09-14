@@ -21,6 +21,13 @@ compute_BIC = function(data, beta, sig, tol = 1e-6) {
   p = nrow(data[[1]])
   q = ncol(data[[1]])
 
+  # `beta` was fit on column-mean-centered data (space_shooting() centers
+  # internally, pooling the mean over all n*p rows per column), so rss
+  # must be computed on the same centering or it picks up a spurious,
+  # lambda-independent offset that swamps the true lambda-dependent signal.
+  col_mean = colMeans(do.call(rbind, data))
+  data = lapply(data, function(mat) sweep(mat, 2, col_mean))
+
   B = outer(sig, sig, "/")
   rss = numeric(q)
   for (j in seq_len(q)) {
