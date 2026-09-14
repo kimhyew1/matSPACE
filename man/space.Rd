@@ -70,8 +70,8 @@ variance (\code{sig}) re-estimation across outer iterations.
 }
 \examples{
 set.seed(1)
-p <- 5; q <- 4; n <- 3
-data <- replicate(n, matrix(rnorm(p * q), p, q), simplify = FALSE)
-fit <- space(data, lam = 0.1, iter = 1)
+p = 5; q = 4; n = 3
+data = replicate(n, matrix(rnorm(p * q), p, q), simplify = FALSE)
+fit = space(data, lam = 0.1, iter = 1)
 fit$ParCor
 }

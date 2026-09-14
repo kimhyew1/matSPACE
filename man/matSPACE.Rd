@@ -10,8 +10,7 @@ matSPACE(
   lambda_U = NULL,
   K = 30,
   f_type_V = "equal",
-  f_type_U = "equal",
-  sf_vec = c(1, 1.5)
+  f_type_U = "equal"
 )
 }
 \arguments{
@@ -21,11 +20,14 @@ observations, in the same format expected by the \code{data} argument of
 
 \item{lambda_V}{optional numeric vector of lasso penalties to use for
 the column (\code{V}, q x q) fit. If \code{NULL} (default), generated via
-\code{\link[=lambda.bound]{lambda.bound()}} on \code{data} with \code{K} values.}
+\code{\link[=lambda.bound]{lambda.bound()}} on \code{data} with \code{K} values. Pass a single value to
+fit at that one penalty directly, without searching a path.}
 
 \item{lambda_U}{optional numeric vector of lasso penalties to use for
 the row (\code{U}, p x p) fit. If \code{NULL} (default), generated via
-\code{\link[=lambda.bound]{lambda.bound()}} on the transposed data with \code{K} values.}
+\code{\link[=lambda.bound]{lambda.bound()}} on the transposed data with \code{K} values. Pass a
+single value to fit at that one penalty directly, without searching
+a path.}
 
 \item{K}{number of lambda values to generate with \code{\link[=lambda.bound]{lambda.bound()}}
 when \code{lambda_V} or \code{lambda_U} is \code{NULL}. Ignored for whichever of
@@ -36,38 +38,29 @@ the \code{V} fit; see \code{compute_weight()}.}
 
 \item{f_type_U}{column weighting scheme forwarded to \code{\link[=space]{space()}} for
 the \code{U} fit; see \code{compute_weight()}.}
-
-\item{sf_vec}{numeric vector of BIC scaling factors (the \code{sf} argument
-of \code{compute_BIC()}). A separate BIC-minimizing lambda — and
-resulting identifiability-resolved \verb{(U, V)} pair — is returned for
-each value.}
 }
 \value{
-A named list, one element per value of \code{sf_vec} (named
-\verb{sf_<value>}), each a list with components:
+A list with components:
 \item{V}{q x q precision matrix at the BIC-minimizing \code{lambda_V},
 rescaled so \code{V[1, 1] == 1}.}
 \item{U}{p x p precision matrix at the BIC-minimizing \code{lambda_U},
 rescaled by the same factor to preserve \code{kronecker(V, U)}.}
-\item{lambda_V, lambda_U}{the BIC-minimizing lambda for \code{V} and \code{U}
-at this \code{sf}.}
+\item{lambda_V, lambda_U}{the BIC-minimizing lambda for \code{V} and \code{U}.}
 \item{BIC_V, BIC_U}{the corresponding minimum BIC values.}
-\item{sf}{the scaling factor this element was selected at.}
 
 The full lambda paths behind this selection are attached as a
 \code{"path"} attribute (\code{attr(fit, "path")}), a list with \code{V} and \code{U}
 components, each with \code{fits} (the raw \code{space()} fit at every lambda
-tried), \code{bic} (a \code{length(lambda)} x \code{length(sf_vec)} matrix, named
-\verb{sf_<value>}), and \code{lambda}. Useful for plotting BIC (or the number
-of nonzero edges, from \code{fits[[i]]$ParCor}) against lambda without
-refitting.
+tried), \code{bic} (a numeric vector of length \code{length(lambda)}), and
+\code{lambda}. Useful for plotting BIC (or the number of nonzero edges,
+from \code{fits[[i]]$ParCor}) against lambda without refitting.
 }
 \description{
 Fits \code{\link[=space]{space()}} independently on the data (for the column precision \code{V},
 q x q) and on the transposed data (for the row precision \code{U}, p x p),
 each over a lasso penalty path, selects the BIC-minimizing lambda for
-\code{U} and for \code{V} separately at every scaling factor in \code{sf_vec}, and
-reconstructs the corresponding precision matrices (via
+\code{U} and for \code{V} separately, and reconstructs the corresponding
+precision matrices (via
 \code{precision_from_parcor()}). Because the Kronecker product
 \code{kronecker(V, U)} is invariant under \verb{(V / c, U * c)} for any
 \code{c > 0}, the pair is not separately identifiable from the data; the
@@ -77,11 +70,11 @@ fitted \code{V[1, 1]} (\code{U} is multiplied by that same \code{c}), which pres
 }
 \examples{
 set.seed(1)
-p <- 4; q <- 3; n <- 3
-data <- replicate(n, matrix(rnorm(p * q), p, q), simplify = FALSE)
-fit <- matSPACE(data, K = 5, sf_vec = c(1, 1.5))
-fit$sf_1$V
-fit$sf_1$U
-path <- attr(fit, "path")
-plot(path$V$lambda, path$V$bic[, "sf_1"], type = "b")
+p = 4; q = 3; n = 3
+data = replicate(n, matrix(rnorm(p * q), p, q), simplify = FALSE)
+fit = matSPACE(data, K = 5)
+fit$V
+fit$U
+path = attr(fit, "path")
+plot(path$V$lambda, path$V$bic, type = "b")
 }

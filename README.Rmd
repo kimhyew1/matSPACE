@@ -1,0 +1,84 @@
+---
+output: github_document
+---
+
+<!-- README.md is generated from README.Rmd. Please edit that file -->
+
+```{r, echo = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  fig.path = "man/figures/README-",
+  error = TRUE,
+  message = FALSE
+)
+```
+
+# matSPACE
+
+<!-- badges: start -->
+[![R-CMD-check](https://github.com/kimhyew1/matSPACE/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/kimhyew1/matSPACE/actions/workflows/R-CMD-check.yaml)
+<!-- badges: end -->
+
+This is a README file of the R package _matSPACE_. Our package fits sparse partial correlation networks for matrix-variate data, i.e. observations that are themselves p x q matrices rather than a single vector of q measurements. We extend the SPACE (Sparse PArtial Correlation Estimation) joint estimation framework to a Kronecker-product precision structure, `Omega = V %x% U`, where `V` (q x q) is the column-wise precision matrix and `U` (p x p) is the row-wise precision matrix. All partial correlations are estimated jointly via an L1-penalized (lasso) shooting algorithm, which preserves symmetry of the estimated network and avoids the tuning-parameter selection difficulties of separate node-wise regressions.
+
+## Installation of the package
+
+To install our package, you may simply execute the following codes:
+```{r, eval = FALSE}
+install.packages("matSPACE")
+
+# development version
+# install.packages("pak")
+pak::pak("kimhyew1/matSPACE")
+```
+
+## A basic example of using the package
+
+We give a toy example to apply the main function `matSPACE`, which estimates the Kronecker-structured row/column precision matrices `U` and `V`.
+
+### Generate data
+
+We first generate simulated matrix-variate data.
+```{r, eval = TRUE}
+set.seed(1)
+p = 5
+q = 4
+n = 20
+
+library(matSPACE)
+data = replicate(n, matrix(rnorm(p * q), p, q), simplify = FALSE)
+```
+
+### Model fitting
+
+Applying `matSPACE` to the simulated data, a lasso penalty path is searched for `V` and `U` separately, and the BIC-minimizing fit is returned for each.
+```{r, eval = TRUE}
+fit = matSPACE(data, K = 10)
+fit$V   # q x q column-wise precision matrix
+fit$U   # p x p row-wise precision matrix
+```
+
+### Visualization of the lambda path
+
+The full lambda path behind this selection is attached as a `"path"` attribute, which lets us plot BIC against lambda without refitting.
+```{r, eval = TRUE}
+path = attr(fit, "path")
+plot(path$V$lambda, path$V$bic, type = "b",
+     xlab = "lambda", ylab = "BIC", main = "Column (V) lambda path")
+```
+
+### Fitting with a single lasso penalty
+
+If you already know the penalty you want, `space` fits a single lasso penalty directly, without searching a path.
+```{r, eval = TRUE}
+fit_single = space(data, lam = 0.5)
+fit_single$ParCor
+```
+
+## Issues
+
+We are happy to troubleshoot any issue with the package;
+
+- please contact to the maintainer by kimhw4126@gmail.com, or
+- please open an issue in the github repository.

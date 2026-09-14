@@ -8,14 +8,13 @@ static inline double soft_thresh(double x, double lam) {
   return (t <= 0.0) ? 0.0 : s * t;
 }
 
-//' Active-set coordinate-descent shooting algorithm for matSPACE
+//' Coordinate-descent shooting algorithm for matSPACE
 //'
 //' Compiled engine behind [space()]: fits the symmetric off-diagonal
 //' partial-correlation coefficients via lasso-penalized coordinate
-//' descent, restricting most sweeps to the current active set (nonzero
-//' coefficients) for speed and falling back to a full global sweep to
-//' detect newly active pairs. Called internally by [space()]; end users
-//' should call [space()] instead.
+//' descent, sweeping all off-diagonal coefficient pairs every iteration
+//' until convergence. Called internally by [space()]; end users should
+//' call [space()] instead.
 //'
 //' @param Y_data numeric vector of length `NN * PP * QQ`: the `NN`
 //'   replicate `PP x QQ` matrices (weighted data), each flattened in
@@ -29,9 +28,8 @@ static inline double soft_thresh(double x, double lam) {
 //' @param QQ number of columns/variables per matrix (`q`).
 //' @param L1 lasso penalty (`lam`) applied to the off-diagonal
 //'   coefficients via soft-thresholding.
-//' @param n_iter maximum number of outer sweep iterations before giving
-//'   up on convergence (each iteration is an active-set pass followed,
-//'   when converged or empty, by a global sweep).
+//' @param n_iter maximum number of full sweeps before giving up on
+//'   convergence.
 //' @param beta_init optional warm start: a length `QQ * QQ` numeric
 //'   vector (row-major, `i * QQ + j` layout) used as the initial
 //'   coefficient matrix instead of the default univariate
@@ -46,7 +44,7 @@ static inline double soft_thresh(double x, double lam) {
 //'   \item{E_m}{length `NN * PP * QQ` numeric vector (row-major), the
 //'     residuals of `Y_m` after the fitted coefficients.}
 //'   \item{iter_count}{total number of coordinate-descent coefficient
-//'     updates performed across all active-set and global sweeps.}
+//'     updates performed across all full sweeps.}
 //' @noRd
 // [[Rcpp::export]]
 List space_shooting(NumericVector Y_data,
@@ -57,7 +55,6 @@ List space_shooting(NumericVector Y_data,
                     Rcpp::Nullable<Rcpp::NumericVector> beta_init = R_NilValue)
 {
   int n=NN, p=PP, q=QQ;
-  double eps1 = 1e-6;
 
   bool warm = beta_init.isNotNull();
   NumericVector beta_init_vec;
@@ -74,8 +71,6 @@ List space_shooting(NumericVector Y_data,
   std::vector<double> B(q*q), B_s(q*q);
   std::vector<double> normx(q, 0.0);
 
-  double beta_change = 0.0;
-  int change_i = 0, change_j = 1;
   int iter_count = 0;
 
   for (int j = 0; j < q; j++) {
@@ -149,55 +144,18 @@ List space_shooting(NumericVector Y_data,
     }
   }
 
-  bool has_active = false;
-  for (int jj = q - 1; jj >= 1 && !has_active; jj--) {
-    for (int ii = jj - 1; ii >= 0 && !has_active; ii--) {
-      if (beta_new[ii*q+jj] > eps1 || beta_new[ii*q+jj] < -eps1) {
-        change_i = ii; change_j = jj;
-        has_active = true;
-      }
-    }
-  }
-
-  if (has_active) {
-    for (int i = 0; i < q*q; i++) beta_old[i] = beta_new[i];
-    int ci=change_i, cj=change_j;
-    double Aij = S[ci*q+cj] * B[ci*q+cj];
-    double Aji = S[cj*q+ci] * B[cj*q+ci];
-    double beta_next = (Aij+Aji)/B_s[ci*q+cj] + beta_old[ci*q+cj];
-    double new_val   = soft_thresh(beta_next, L1/B_s[ci*q+cj]);
-    beta_change      = beta_old[ci*q+cj] - new_val;
-    beta_new[ci*q+cj] = beta_new[cj*q+ci] = new_val;
-  }
-
-  std::vector<bool> in_active(q*q, false);
-  std::vector<int>  active_pos(q*q, -1);
-  std::vector<std::pair<int,int>> active_list;
-  active_list.reserve(q*(q-1)/2);
-
-  for (int jj = q - 1; jj >= 1; jj--) {
-    for (int ii = jj - 1; ii >= 0; ii--) {
-      if (beta_new[ii*q+jj] > eps1 || beta_new[ii*q+jj] < -eps1) {
-        in_active[ii*q+jj] = true;
-        active_pos[ii*q+jj] = (int)active_list.size();
-        active_list.push_back({ii, jj});
-      }
-    }
-  }
-
-  std::vector<bool> touched(q, true);
+  // S already reflects beta_new exactly (cold- or warm-started), so the
+  // lazy S-correction below is a no-op (beta_change = 0) the first time
+  // it runs.
+  double beta_change = 0.0;
+  int change_i = 0, change_j = (q > 1) ? 1 : 0;
 
   for (int iter = 0; iter < n_iter; iter++) {
 
     for (int i = 0; i < q*q; i++) beta_last[i] = beta_new[i];
 
-    int nrow_pick = (int)active_list.size();
-    double maxdif = -100.0;
-
-    if (nrow_pick > 0) {
-      for (int jrow = 0; jrow < nrow_pick; jrow++) {
-        int ci = active_list[jrow].first;
-        int cj = active_list[jrow].second;
+    for (int ci = 0; ci < q - 1; ci++) {
+      for (int cj = ci + 1; cj < q; cj++) {
 
         beta_old[change_i*q+change_j] = beta_new[change_i*q+change_j];
         beta_old[change_j*q+change_i] = beta_new[change_j*q+change_i];
@@ -219,77 +177,15 @@ List space_shooting(NumericVector Y_data,
         beta_new[ci*q+cj] = beta_new[cj*q+ci] = new_val;
         change_i=ci; change_j=cj;
         iter_count++;
-        touched[ci] = true;
-        touched[cj] = true;
-      }
-
-      for (int i = 0; i < q*q; i++) {
-        double d = beta_last[i]-beta_new[i]; if (d<0) d=-d;
-        if (d>maxdif) maxdif=d;
       }
     }
 
-    if (maxdif < 1e-6 || nrow_pick < 1) {
-      for (int i = 0; i < q*q; i++) beta_last[i] = beta_new[i];
-
-      for (int ci = 0; ci < q - 1; ci++) {
-        for (int cj = ci + 1; cj < q; cj++) {
-          if (!touched[ci] && !touched[cj]) continue;
-
-          beta_old[change_i*q+change_j] = beta_new[change_i*q+change_j];
-          beta_old[change_j*q+change_i] = beta_new[change_j*q+change_i];
-
-          double bc  = beta_change;
-          double Bji = B[change_j*q+change_i];
-          double Bij = B[change_i*q+change_j];
-          bool do_update = (bc > eps1 || bc < -eps1);
-          if (do_update) {
-            for (int i = 0; i < q; i++) {
-              S[i*q+change_i] += bc * Bji * C[i*q+change_j];
-              S[i*q+change_j] += bc * Bij * C[i*q+change_i];
-            }
-          }
-
-          double Aij = S[ci*q+cj] * B[ci*q+cj];
-          double Aji = S[cj*q+ci] * B[cj*q+ci];
-
-          double beta_next = (Aij+Aji)/B_s[ci*q+cj] + beta_old[ci*q+cj];
-          double new_val   = soft_thresh(beta_next, L1/B_s[ci*q+cj]);
-          beta_change      = beta_old[ci*q+cj] - new_val;
-          beta_new[ci*q+cj] = beta_new[cj*q+ci] = new_val;
-          change_i=ci; change_j=cj;
-          iter_count++;
-
-          bool was_active = in_active[ci*q+cj];
-          bool now_active = (new_val > eps1 || new_val < -eps1);
-          if (!was_active && now_active) {
-            in_active[ci*q+cj] = true;
-            active_pos[ci*q+cj] = (int)active_list.size();
-            active_list.push_back({ci, cj});
-          } else if (was_active && !now_active) {
-            in_active[ci*q+cj] = false;
-            int pos  = active_pos[ci*q+cj];
-            int last = (int)active_list.size() - 1;
-            if (pos != last) {
-              active_list[pos] = active_list[last];
-              int mi = active_list[pos].first, mj = active_list[pos].second;
-              active_pos[mi*q+mj] = pos;
-            }
-            active_list.pop_back();
-            active_pos[ci*q+cj] = -1;
-          }
-        }
-      }
-
-      for (int t = 0; t < q; t++) touched[t] = false;
-
-      maxdif = -100.0;
-      for (int i = 0; i < q*q; i++) {
-        double d = beta_last[i]-beta_new[i]; if (d<0) d=-d;
-        if (d>maxdif) maxdif=d;
-      }
-      if (maxdif < 1e-6) break;
+    double maxdif = -100.0;
+    for (int i = 0; i < q*q; i++) {
+      double d = beta_last[i]-beta_new[i]; if (d<0) d=-d;
+      if (d>maxdif) maxdif=d;
     }
+    if (maxdif < 1e-6) break;
   }
 
   std::vector<double> Em(n*p*q, 0.0);
