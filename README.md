@@ -96,6 +96,12 @@ plot(log(path$V$lambda), path$V$bic, type = "b",
 
 ![](man/figures/README-unnamed-chunk-5-1.png)<!-- -->
 
+``` r
+points(path$V$lambda[which(path$V$bic)], which(path$V$bic))
+#> Error in `which()`:
+#> ! argument to 'which' is not logical
+```
+
 ### Fitting with a single lasso penalty
 
 If you already know the penalty you want, `space` fits a single lasso
