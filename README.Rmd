@@ -39,7 +39,10 @@ We give a toy example to apply the main function `matSPACE`, which estimates the
 
 ### Generate data
 
-We first generate simulated matrix-variate data.
+We first generate simulated matrix-variate data. Columns 1-2 and columns
+3-4 are correlated by construction, so there is real sparse structure
+for `matSPACE` to recover (pure noise data has no structure to
+penalize away, so the BIC-optimal fit is always the fully sparse one).
 ```{r, eval = TRUE}
 set.seed(1)
 p = 5
@@ -47,7 +50,12 @@ q = 4
 n = 20
 
 library(matSPACE)
-data = replicate(n, matrix(rnorm(p * q), p, q), simplify = FALSE)
+data = replicate(n, {
+  mat = matrix(rnorm(p * q), p, q)
+  mat[, 2] = mat[, 2] + 0.8 * mat[, 1]
+  mat[, 4] = mat[, 4] + 0.8 * mat[, 3]
+  mat
+}, simplify = FALSE)
 ```
 
 ### Model fitting
@@ -65,7 +73,7 @@ The full lambda path behind this selection is attached as a `"path"` attribute, 
 ```{r, eval = TRUE}
 path = attr(fit, "path")
 plot(log(path$V$lambda), path$V$bic, type = "b",
-     xlab = "lambda", ylab = "BIC", main = "Column (V) lambda path")
+     xlab = "log(lambda)", ylab = "BIC", main = "Column (V) lambda path")
 ```
 
 ### Fitting with a single lasso penalty
