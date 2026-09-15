@@ -50,12 +50,10 @@ q = 4
 n = 20
 
 library(matSPACE)
-data = replicate(n, {
-  mat = matrix(rnorm(p * q), p, q)
-  mat[, 2] = mat[, 2] + 0.8 * mat[, 1]
-  mat[, 4] = mat[, 4] + 0.8 * mat[, 3]
-  mat
-}, simplify = FALSE)
+data = replicate(n, {mat = matrix(rnorm(p * q), p, q)
+                     mat[, 2] = mat[, 2] + 0.8 * mat[, 1]
+                     mat[, 4] = mat[, 4] + 0.8 * mat[, 3]
+                     mat}, simplify = FALSE)
 ```
 
 ### Model fitting
